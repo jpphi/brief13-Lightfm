@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Dropdown</title>
+
+
+
+        <script type="text/javascript">
+            function initElement()
+            {
+            var p = document.getElementById("idd");
+            // NOTE: showAlert(); ou showAlert(param); NE fonctionne PAS ici.
+            // Il faut fournir une valeur de type function (nom de fonction déclaré ailleurs ou declaration en ligne de fonction).
+            p.onclick = showAlert;
+            };
+            
+            function showAlert()
+            {
+            alert("Evènement de click détecté");
+            }
+        </script>
+    </head>
+
+
+    <body onload="initElement();">
+        
+        <select name= colours method="GET" action="/" multiple size="3" id= "idd">
+            {% for colour in colours %}
+            <option value= "{{colour}}" SELECTED>{{colour}}</option>"
+            {% endfor %}
+        </select>
+
+    </body>
+</html>
+
+
+
