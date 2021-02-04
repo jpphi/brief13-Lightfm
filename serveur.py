@@ -19,6 +19,8 @@ from lightfm.data import Dataset
 
 from scipy.sparse import csr_matrix
 
+NB_ARTISTES= 17632
+
 
 
 app = Flask(__name__)
@@ -30,6 +32,14 @@ artists = pd.read_csv('datasets/artists.dat', sep='\t', usecols=['id','name'])
 ap = pd.merge(artists, plays, how="inner", left_on="id", right_on="artistID")
 ap = ap.rename(columns={"weight": "playCount"})
 
+# On supprime ces lignes
+ap= ap[ap.artistID<=NB_ARTISTES]
+
+# On fait le choix de supprimer les artistes écouter que par eux même...
+ap= ap[ap.artistID<=NB_ARTISTES]
+ap= ap[ap.playCount >10]
+
+
 # Group artist by name
 artist_rank = ap.groupby(['name']) \
     .agg({'userID' : 'count', 'playCount' : 'sum'}) \
@@ -37,32 +47,33 @@ artist_rank = ap.groupby(['name']) \
     .sort_values(['totalPlays'], ascending=False)
 
 artist_rank['avgPlays'] = artist_rank['totalPlays'] / artist_rank['totalUsers']
+#artist_rank['avgPlays'] = artist_rank['totalPlays'] / artist_rank['totalUsers']
 #print(artist_rank)
 artist_names= ap["name"].unique()
-artist_names.sort()
+#artist_names.sort()
 artist_names= tuple(artist_names)
 #print(ap.columns)
 #print(ap)
 
 # Merge into ap matrix
-ap = ap.join(artist_rank, on="name", how="inner") \
-    .sort_values(['playCount'], ascending=False)
+ap = ap.join(artist_rank, on="name", how="inner").sort_values(['playCount'], ascending=False)
 
 # Preprocessing
+ap.playCount= np.log(ap.playCount + 0.1) # + 0.1 pour éviter les '0' (log(1)= 0)
 pc = ap.playCount
 play_count_scaled = (pc - pc.min()) / (pc.max() - pc.min())
 ap = ap.assign(playCountScaled=play_count_scaled)
-#print(ap)
 
 # Build a user-artist rating matrix 
 ratings_df = ap.pivot(index='userID', columns='artistID', values='playCountScaled')
 ratings = ratings_df.fillna(0).values
-#print(ratings.shape)
+
+# construire le vecteur
 vecteur=np.zeros(ratings.shape[1])
 
 
 @app.route('/', methods=['GET','POST'])
-def dashboard():
+def peuimportelenom():
 
     noms= request.form.getlist("dblst_artists")
     sugg= []
@@ -73,9 +84,11 @@ def dashboard():
         lind= list(artiste.artistID)[0] -1
         vecteur[lind]= artiste.playCountScaled.median()
 
+    # création de la matrice
     X= np.vstack((ratings,vecteur))
+    
+    # On importe le code du jupyter notebook
     n_users, n_items = X.shape
-
 
     Xcsr = csr_matrix(X)
     Xcoo = Xcsr.tocoo()
@@ -88,17 +101,10 @@ def dashboard():
     model.fit(train, epochs=10, num_threads=2)
 
     scores = model.predict(0, vecteur)
-    print("score:",scores)
     top_items = ap["name"].unique()[np.argsort(-scores)]
 
     sugg= top_items[:10]
     
-
-    """
-    print(top_items)
-
-    #print(X)
-    """
 
     return render_template("page.html", artist_names= artist_names, noms= noms, sugg= sugg)
 
